@@ -176,7 +176,9 @@ contract ThunderLoanUpgraded is Initializable, OwnableUpgradeable, UUPSUpgradeab
     }
 
     function flashloan(address receiverAddress, IERC20 token, uint256 amount, bytes calldata params) external {
+        // find asset contract corresponding to token 
         AssetToken assetToken = s_tokenToAssetToken[token];
+        // amount of token avaible to loan 
         uint256 startingBalance = IERC20(token).balanceOf(address(assetToken));
 
         if (amount > startingBalance) {

@@ -95,6 +95,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     // The fee in WEI, it should have 18 decimals. Each flash loan takes a flat fee of the token price.
     uint256 private s_feePrecision;
     uint256 private s_flashLoanFee; // 0.3% ETH fee
+    uint256 private s_minAMOUNT; 
 
     mapping(IERC20 token => bool currentlyFlashLoaning) private s_currentlyFlashLoaning;
 
@@ -140,14 +141,17 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         __Ownable_init();
         __UUPSUpgradeable_init();
         __Oracle_init(tswapAddress);
+        s_minAMOUNT = 500; 
         s_feePrecision = 1e18;
         s_flashLoanFee = 3e15; // 0.3% ETH fee
     }
 
     function deposit(IERC20 token, uint256 amount) external revertIfZero(amount) revertIfNotAllowedToken(token) {
         // needs IERC20(token).balanceOf(msg.sender) >= amount 
+        require(amount > s_minAMOUNT, "amount too low for deposit"); 
         AssetToken assetToken = s_tokenToAssetToken[token];
         uint256 exchangeRate = assetToken.getExchangeRate();
+                            // 100 * 1e18 / 5e17
         uint256 mintAmount = (amount * assetToken.EXCHANGE_RATE_PRECISION()) / exchangeRate;
         emit Deposit(msg.sender, token, amount);
         assetToken.mint(msg.sender, mintAmount);
@@ -167,6 +171,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         revertIfZero(amountOfAssetToken)
         revertIfNotAllowedToken(token)
     {
+        require(amountOfAssetToken > s_minAMOUNT, "amount too low for redeem "); 
         AssetToken assetToken = s_tokenToAssetToken[token];
         uint256 exchangeRate = assetToken.getExchangeRate();
         if (amountOfAssetToken == type(uint256).max) {
@@ -179,7 +184,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     }
 
     function flashloan(address receiverAddress, IERC20 token, uint256 amount, bytes calldata params) external {
-        // ammount must be > 333
+        require(amount > s_minAMOUNT, "amount too low for deposit"); 
         // get token contract address 
         AssetToken assetToken = s_tokenToAssetToken[token];
         // balance en token de l'address du assetToken 
@@ -288,4 +293,8 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner { }
+
+   
 }
+
+
