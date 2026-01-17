@@ -180,7 +180,9 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
 
     function flashloan(address receiverAddress, IERC20 token, uint256 amount, bytes calldata params) external {
         // ammount must be > 333
+        // get token contract address 
         AssetToken assetToken = s_tokenToAssetToken[token];
+        // balance en token de l'address du assetToken 
         uint256 startingBalance = IERC20(token).balanceOf(address(assetToken));
 
         if (amount > startingBalance) {
@@ -198,6 +200,8 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         emit FlashLoan(receiverAddress, token, amount, fee, params);
 
         s_currentlyFlashLoaning[token] = true;
+
+        // == underlying.safeTransfer() 
         assetToken.transferUnderlyingTo(receiverAddress, amount);
         // slither-disable-next-line unused-return reentrancy-vulnerabilities-2
         receiverAddress.functionCall(
@@ -223,6 +227,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
             revert ThunderLoan__NotCurrentlyFlashLoaning();
         }
         AssetToken assetToken = s_tokenToAssetToken[IERC20(token)];
+        // needs approve ? 
         token.safeTransferFrom(msg.sender, address(assetToken), amount);
     }
 
@@ -239,6 +244,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
             return assetToken;
         } else {
             AssetToken assetToken = s_tokenToAssetToken[token];
+            // useless delete can lead to token loss 
             delete s_tokenToAssetToken[token];
             emit AllowedTokenSet(token, assetToken, allowed);
             return assetToken;
