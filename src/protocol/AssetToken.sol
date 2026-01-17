@@ -77,6 +77,7 @@ contract AssetToken is ERC20 {
         i_underlying.safeTransfer(to, amount);
     }
 
+    // with fee == 0 exchange rate isnt increasing 
     function updateExchangeRate(uint256 fee) external onlyThunderLoan {
         // 1. Get the current exchange rate
         // 2. How big the fee is should be divided by the total supply

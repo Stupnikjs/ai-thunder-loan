@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.20;
+pragma solidity ^0.8.20;
 
 import { Test, console } from "forge-std/Test.sol";
 import { BaseTest, ThunderLoan } from "./BaseTest.t.sol";
@@ -87,4 +87,25 @@ contract ThunderLoanTest is BaseTest {
         assertEq(mockFlashLoanReceiver.getbalanceDuring(), amountToBorrow + AMOUNT);
         assertEq(mockFlashLoanReceiver.getBalanceAfter(), AMOUNT - calculatedFee);
     }
+    function testFlashLoanSmallAMOUNT() public setAllowedToken hasDeposits {
+        uint256 amountToBorrow = 320;
+        uint256 calculatedFee = thunderLoan.getCalculatedFee(tokenA, amountToBorrow);
+        assertEq(0, calculatedFee); 
+        vm.startPrank(user);
+        tokenA.mint(address(mockFlashLoanReceiver), 320);
+        thunderLoan.flashloan(address(mockFlashLoanReceiver), tokenA, amountToBorrow, "");
+        vm.stopPrank();
+
+        assertEq(mockFlashLoanReceiver.getbalanceDuring(), amountToBorrow + 320);
+        assertEq(mockFlashLoanReceiver.getBalanceAfter(), 320 - calculatedFee);
+    }
+
+    function testFeeForSmallAMOUNT() public setAllowedToken hasDeposits {
+        // 333 doesnt work 334 does 
+        uint256 amountToBorrow = 200; 
+        uint256 calculatedFee = thunderLoan.getCalculatedFee(tokenA, amountToBorrow);
+        assertGt(calculatedFee, 0); 
+       
+    }
+
 }
