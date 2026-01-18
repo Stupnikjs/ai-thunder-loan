@@ -39,3 +39,37 @@ function deposit(IERC20 token, uint256 amount) external revertIfZero(amount) rev
 ```
 fees calculated for small deposit will be 0, so updateExchangeRate will revert
 might only accept deposit from somme amount here > s_feePrecision / s_flashLoanFee
+
+
+
+
+## REEDEM FUNC 
+
+### 
+
+
+```solidity 
+
+   /// @notice Withdraws the underlying token from the asset token
+    /// @param token The token they want to withdraw from
+    /// @param amountOfAssetToken The amount of the underlying they want to withdraw
+    function redeem(
+        IERC20 token,
+        uint256 amountOfAssetToken
+    )
+        external
+        revertIfZero(amountOfAssetToken)
+        revertIfNotAllowedToken(token)
+    {
+        AssetToken assetToken = s_tokenToAssetToken[token];
+        uint256 exchangeRate = assetToken.getExchangeRate();
+        if (amountOfAssetToken == type(uint256).max) {
+            amountOfAssetToken = assetToken.balanceOf(msg.sender);
+        }
+        uint256 amountUnderlying = (amountOfAssetToken * exchangeRate) / assetToken.EXCHANGE_RATE_PRECISION();
+        emit Redeemed(msg.sender, token, amountOfAssetToken, amountUnderlying);
+        assetToken.burn(msg.sender, amountOfAssetToken);
+        // needs approve to safeTransferFrom
+        assetToken.transferUnderlyingTo(msg.sender, amountUnderlying);
+    }
+```

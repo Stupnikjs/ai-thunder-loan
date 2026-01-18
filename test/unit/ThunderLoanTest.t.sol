@@ -75,6 +75,22 @@ contract ThunderLoanTest is BaseTest {
         vm.stopPrank();
         _;
     }
+    function testFuzz_DepositThenReedem(uint256 _amount) public setAllowedToken {
+        _amount = bound(_amount, 1000, 1e18);
+        vm.startPrank(liquidityProvider);
+        tokenA.mint(liquidityProvider, _amount);
+        tokenA.approve(address(thunderLoan), _amount);
+        thunderLoan.deposit(tokenA, _amount);
+        bool isAllowed = thunderLoan.isAllowedToken(tokenA);
+        uint256 balanceBefore = tokenA.balanceOf(liquidityProvider);
+        assertEq(balanceBefore, 0);
+        assertTrue(isAllowed);
+        thunderLoan.redeem(tokenA, _amount);
+        uint256 balance = tokenA.balanceOf(liquidityProvider);
+        assertEq(balance, _amount);
+        vm.stopPrank();
+    }
+
 
     function testFlashLoan() public setAllowedToken hasDeposits {
         uint256 amountToBorrow = AMOUNT * 10;
@@ -88,27 +104,38 @@ contract ThunderLoanTest is BaseTest {
         assertEq(mockFlashLoanReceiver.getBalanceAfter(), AMOUNT - calculatedFee);
     }
     function testFlashLoanSmallAMOUNT() public setAllowedToken hasDeposits {
-        uint256 small = 302;
-        uint256 amountToBorrow = small;
+        uint256 minAmount = 1e18 / uint256(3e15) + 1;
+
+        uint256 amountToBorrow = minAmount;
         uint256 calculatedFee = thunderLoan.getCalculatedFee(tokenA, amountToBorrow);
         assertNotEq(0, calculatedFee); 
+        
         vm.startPrank(user);
-        tokenA.mint(address(mockFlashLoanReceiver), small);
+        tokenA.mint(address(mockFlashLoanReceiver), minAmount);
         thunderLoan.flashloan(address(mockFlashLoanReceiver), tokenA, amountToBorrow, "");
+        
         vm.stopPrank();
 
-        //assertEq(mockFlashLoanReceiver.getbalanceDuring(), amountToBorrow + small);
-        //assertEq(mockFlashLoanReceiver.getBalanceAfter(), small - calculatedFee);
+        assertEq(mockFlashLoanReceiver.getbalanceDuring(), amountToBorrow + minAmount);
+        assertEq(mockFlashLoanReceiver.getBalanceAfter(), minAmount - calculatedFee);
     }
 
     function testFeeForSmallAMOUNT() public setAllowedToken hasDeposits {
         // 333 doesnt work 334 does 
-        uint256 amountToBorrow = 200; 
-        uint256 calculatedFee = thunderLoan.getCalculatedFee(tokenA, amountToBorrow);
+        uint256 minAmount = 1e18 / uint256(3e15) + 1;
+        uint256 calculatedFee = thunderLoan.getCalculatedFee(tokenA, minAmount);
        assertNotEq(calculatedFee, 0); 
        
     }
 
    
 
+ function testFuzz_NonZeroAmountShouldAlwaysHaveFee(uint256 amount) public {
+    amount = bound(amount, 1, 1e18);
+
+    uint256 fee = thunderLoan.getCalculatedFee(tokenA, amount);
+
+    // Economic invariant that SHOULD hold
+    assertGt(fee, 0, "Non-zero deposit resulted in zero fee");
+}
 }

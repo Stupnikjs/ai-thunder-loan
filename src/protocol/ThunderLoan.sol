@@ -95,6 +95,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     // The fee in WEI, it should have 18 decimals. Each flash loan takes a flat fee of the token price.
     uint256 private s_feePrecision;
     uint256 private s_flashLoanFee; // 0.3% ETH fee
+    uint256 private s_minAMOUNT; 
 
     mapping(IERC20 token => bool currentlyFlashLoaning) private s_currentlyFlashLoaning;
 
@@ -140,13 +141,17 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         __Ownable_init();
         __UUPSUpgradeable_init();
         __Oracle_init(tswapAddress);
+        s_minAMOUNT = 500; 
         s_feePrecision = 1e18;
         s_flashLoanFee = 3e15; // 0.3% ETH fee
     }
 
     function deposit(IERC20 token, uint256 amount) external revertIfZero(amount) revertIfNotAllowedToken(token) {
+        // needs IERC20(token).balanceOf(msg.sender) >= amount 
+        require(amount > s_minAMOUNT, "amount too low for deposit"); 
         AssetToken assetToken = s_tokenToAssetToken[token];
         uint256 exchangeRate = assetToken.getExchangeRate();
+                            // 100 * 1e18 / 5e17
         uint256 mintAmount = (amount * assetToken.EXCHANGE_RATE_PRECISION()) / exchangeRate;
         emit Deposit(msg.sender, token, amount);
         assetToken.mint(msg.sender, mintAmount);
@@ -157,28 +162,31 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
 
     /// @notice Withdraws the underlying token from the asset token
     /// @param token The token they want to withdraw from
-    /// @param amountOfAssetToken The amount of the underlying they want to withdraw
+    /// @param amountOfRealToken The amount of the underlying they want to withdraw
     function redeem(
         IERC20 token,
-        uint256 amountOfAssetToken
+        uint256 amountOfRealToken
     )
         external
-        revertIfZero(amountOfAssetToken)
+        revertIfZero(amountOfRealToken)
         revertIfNotAllowedToken(token)
     {
         AssetToken assetToken = s_tokenToAssetToken[token];
         uint256 exchangeRate = assetToken.getExchangeRate();
-        if (amountOfAssetToken == type(uint256).max) {
-            amountOfAssetToken = assetToken.balanceOf(msg.sender);
+        if (amountOfRealToken == type(uint256).max) {
+            amountOfRealToken = assetToken.balanceOf(msg.sender);
         }
-        uint256 amountUnderlying = (amountOfAssetToken * exchangeRate) / assetToken.EXCHANGE_RATE_PRECISION();
-        emit Redeemed(msg.sender, token, amountOfAssetToken, amountUnderlying);
-        assetToken.burn(msg.sender, amountOfAssetToken);
-        assetToken.transferUnderlyingTo(msg.sender, amountUnderlying);
+        uint256 amountToBurn = assetToken.EXCHANGE_RATE_PRECISION() * amountOfRealToken  /  exchangeRate;
+        emit Redeemed(msg.sender, token, amountOfRealToken, amountToBurn);
+        assetToken.burn(msg.sender, amountOfRealToken);
+        assetToken.transferUnderlyingTo(msg.sender, amountOfRealToken);
     }
 
     function flashloan(address receiverAddress, IERC20 token, uint256 amount, bytes calldata params) external {
+        require(amount > s_minAMOUNT, "amount too low for deposit"); 
+        // get token contract address 
         AssetToken assetToken = s_tokenToAssetToken[token];
+        // balance en token de l'address du assetToken 
         uint256 startingBalance = IERC20(token).balanceOf(address(assetToken));
 
         if (amount > startingBalance) {
@@ -196,6 +204,8 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         emit FlashLoan(receiverAddress, token, amount, fee, params);
 
         s_currentlyFlashLoaning[token] = true;
+
+        // == underlying.safeTransfer() 
         assetToken.transferUnderlyingTo(receiverAddress, amount);
         // slither-disable-next-line unused-return reentrancy-vulnerabilities-2
         receiverAddress.functionCall(
@@ -221,6 +231,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
             revert ThunderLoan__NotCurrentlyFlashLoaning();
         }
         AssetToken assetToken = s_tokenToAssetToken[IERC20(token)];
+        // needs approve ? 
         token.safeTransferFrom(msg.sender, address(assetToken), amount);
     }
 
@@ -237,6 +248,7 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
             return assetToken;
         } else {
             AssetToken assetToken = s_tokenToAssetToken[token];
+            // useless delete can lead to token loss 
             delete s_tokenToAssetToken[token];
             emit AllowedTokenSet(token, assetToken, allowed);
             return assetToken;
@@ -247,6 +259,8 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
         //slither-disable-next-line divide-before-multiply
         uint256 valueOfBorrowedToken = (amount * getPriceInWeth(address(token))) / s_feePrecision;
         //slither-disable-next-line divide-before-multiply
+        // == value * 3 / 1000
+        // if amount <= 333 => fee == 0
         fee = (valueOfBorrowedToken * s_flashLoanFee) / s_feePrecision;
     }
 
@@ -278,4 +292,8 @@ contract ThunderLoan is Initializable, OwnableUpgradeable, UUPSUpgradeable, Orac
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner { }
+
+   
 }
+
+

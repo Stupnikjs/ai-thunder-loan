@@ -22,8 +22,8 @@ contract AssetToken is ERC20 {
     // ie: s_exchangeRate = 2
     // means 1 asset token is worth 2 underlying tokens
     uint256 private s_exchangeRate;
-    uint256 public constant EXCHANGE_RATE_PRECISION = 1e18;
-    uint256 private constant STARTING_EXCHANGE_RATE = 1e18;
+    uint256 public constant EXCHANGE_RATE_PRECISION = 1e21;
+    uint256 private constant STARTING_EXCHANGE_RATE = 1e21;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -81,11 +81,7 @@ contract AssetToken is ERC20 {
         // 1. Get the current exchange rate
         // 2. How big the fee is should be divided by the total supply
         // 3. So if the fee is 1e18, and the total supply is 2e18, the exchange rate be multiplied by 1.5
-        // if the fee is 0.5 ETH, and the total supply is 4, the exchange rate should be multiplied by 1.125
-        // it should always go up, never down
-        // newExchangeRate = oldExchangeRate * (totalSupply + fee) / totalSupply
-        // newExchangeRate = 1 (4 + 0.5) / 4
-        // newExchangeRate = 1.125
+
         uint256 newExchangeRate = s_exchangeRate * (totalSupply() + fee) / totalSupply();
 
         if (newExchangeRate <= s_exchangeRate) {
